@@ -57,7 +57,12 @@ def answer(req: AnswerRequest) -> AnswerResponse:
     state = AgentState(question=req.question, db_id=req.db)
     config: dict[str, Any] = {
         "callbacks": [_lf_handler] if _lf_handler is not None else [],
-        "metadata": req.tags,
+        "run_name": f"text2sql:{req.db}",
+        "metadata": {
+            **req.tags,
+            "db": req.db,
+            "model": os.environ.get("VLLM_MODEL", "unknown"),
+        },
     }
     try:
         final = graph.invoke(state, config=config)

@@ -1,24 +1,80 @@
-"""Prompt templates for the agent nodes.
+"""Prompt templates for the agent nodes."""
 
-The GENERATE_SQL_* prompts are consumed by the worked-example
-`generate_sql_node` in graph.py via `.format(schema=..., question=...)`, so
-keep those placeholders intact. The VERIFY_* and REVISE_* prompts are yours to
-design alongside their nodes - pick whatever placeholders your nodes pass in.
+GENERATE_SQL_SYSTEM = """\
+You are an expert SQLite query writer. Given a database schema and a question, write a single SQL query that answers the question.
 
-Filling these in is part of Phase 3.
+Rules:
+- Output ONLY a ```sql ... ``` fenced code block. No explanation, no prose before or after.
+- Use only tables and columns that exist in the schema.
+- Use SQLite syntax (LIKE not ILIKE; no FULL OUTER JOIN; strftime for dates).
+- Double-quote identifiers that may conflict with SQL reserved words.\
 """
 
-GENERATE_SQL_SYSTEM = ""
-
 # Available placeholders: {schema}, {question}
-GENERATE_SQL_USER = ""
+GENERATE_SQL_USER = """\
+Schema:
+{schema}
+
+Question: {question}
+
+Write a SQL query that answers this question.\
+"""
 
 
-VERIFY_SYSTEM = ""
+VERIFY_SYSTEM = """\
+You are a SQL result verifier. Given a question, the SQL that was run, and its execution result, decide whether the result plausibly answers the question.
 
-VERIFY_USER = ""
+Respond with ONLY a JSON object — no other text, no markdown fences:
+{"ok": true, "issue": ""}
+or
+{"ok": false, "issue": "one-sentence description of the problem"}
+
+Mark ok=false if ANY of the following is true:
+- The SQL produced an error.
+- The result has 0 rows but the question clearly implies data should exist.
+- The returned columns do not contain information that answers the question.
+- The result is obviously wrong (e.g. negative counts, nonsensical values).\
+"""
+
+# Available placeholders: {question}, {sql}, {execution}
+VERIFY_USER = """\
+Question: {question}
+
+SQL:
+{sql}
+
+Execution result:
+{execution}
+
+Does this result plausibly answer the question? Reply with only the JSON object.\
+"""
 
 
-REVISE_SYSTEM = ""
+REVISE_SYSTEM = """\
+You are an expert SQLite query writer. A previous SQL query did not correctly answer a question. Your job is to write a corrected query.
 
-REVISE_USER = ""
+Rules:
+- Output ONLY a ```sql ... ``` fenced code block. No explanation, no prose.
+- Use only tables and columns that exist in the schema.
+- Use SQLite syntax.
+- Read the execution result and the stated problem carefully before writing your fix.\
+"""
+
+# Available placeholders: {schema}, {question}, {previous_sql}, {execution}, {issue}
+REVISE_USER = """\
+Schema:
+{schema}
+
+Question: {question}
+
+Previous SQL (which had a problem):
+{previous_sql}
+
+Execution result of previous SQL:
+{execution}
+
+Problem identified:
+{issue}
+
+Write a corrected SQL query.\
+"""
