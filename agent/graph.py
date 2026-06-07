@@ -35,8 +35,8 @@ MAX_ITERATIONS = 3
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
 VLLM_MODEL = os.environ.get("VLLM_MODEL", "Qwen/Qwen3-30B-A3B-Instruct-2507")
 # vLLM ignores the key, but a hosted OpenAI-compatible provider needs a real one.
-# Lets you point the agent at e.g. OpenAI while iterating without a running vLLM.
-LLM_API_KEY = os.environ.get("OPENAI_API_KEY", "not-needed")
+# LLM_API_KEY takes precedence; OPENAI_API_KEY kept as a fallback for compatibility.
+LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY", "not-needed")
 
 
 @dataclass
