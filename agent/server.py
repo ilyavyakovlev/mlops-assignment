@@ -55,13 +55,15 @@ def health() -> dict[str, str]:
 @app.post("/answer", response_model=AnswerResponse)
 def answer(req: AnswerRequest) -> AnswerResponse:
     state = AgentState(question=req.question, db_id=req.db)
+    model = os.environ.get("VLLM_MODEL", "unknown")
     config: dict[str, Any] = {
         "callbacks": [_lf_handler] if _lf_handler is not None else [],
         "run_name": f"text2sql:{req.db}",
+        "tags": [f"db:{req.db}", f"model:{model}"] + [f"{k}:{v}" for k, v in req.tags.items()],
         "metadata": {
             **req.tags,
             "db": req.db,
-            "model": os.environ.get("VLLM_MODEL", "unknown"),
+            "model": model,
         },
     }
     try:
