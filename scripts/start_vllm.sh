@@ -20,7 +20,8 @@ exec "$UV" run python -m vllm.entrypoints.openai.api_server \
     --max-num-seqs 64 \
     --enable-prefix-caching \
     --enable-chunked-prefill \
-    --disable-log-requests
+    --disable-log-requests \
+    --trust-remote-code
 #
 # Flag rationale (for REPORT.md Phase 1):
 #

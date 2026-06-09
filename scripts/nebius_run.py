@@ -138,12 +138,16 @@ def create_instance(env: dict, disk_id: str, suffix: str) -> str:
     else:
         pub_key = sh_out(["ssh-keygen", "-y", "-f", env["SSH_PRIVATE_KEY_PATH"]])
 
-    network_iface = json.dumps([{
+    sg_id = env.get("NEBIUS_SECURITY_GROUP_ID", "")
+    iface: dict = {
         "name": "eth0",
         "ip_address": {"allocationId": ""},
         "subnet_id": env["NEBIUS_SUBNET_ID"],
         "public_ip_address": {},
-    }])
+    }
+    if sg_id:
+        iface["security_groups"] = [{"id": sg_id}]
+    network_iface = json.dumps([iface])
 
     cloud_init = f"""users:
  - name: {SSH_USER}
@@ -191,8 +195,14 @@ def wait_for_running(instance_id: str, timeout: int = 600) -> None:
         time.sleep(10)
 
 
-def get_public_ip(instance_id: str, timeout: int = 120) -> str:
-    print("\n[3a/7] Waiting for public IP …")
+def _is_reachable(ip: str) -> bool:
+    """Quick ICMP reachability check (1 packet, 3s timeout)."""
+    r = subprocess.run(["ping", "-c", "1", "-W", "3", ip], capture_output=True)
+    return r.returncode == 0
+
+
+def get_public_ip(instance_id: str, timeout: int = 180) -> str:
+    print("\n[3a/7] Waiting for public IP and ICMP reachability …")
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         data = json.loads(neb("compute", "instance", "get", "--id", instance_id))
@@ -201,10 +211,17 @@ def get_public_ip(instance_id: str, timeout: int = 120) -> str:
             addr = (iface.get("public_ip_address", {}) or {}).get("address", "")
             if addr and addr != "null":
                 ip = addr.split("/")[0]   # strip CIDR suffix if present
-                print(f"  Public IP: {ip}")
-                return ip
+                print(f"  Public IP: {ip} — checking reachability …", end="", flush=True)
+                if _is_reachable(ip):
+                    print(" OK")
+                    return ip
+                print(" UNREACHABLE (Nebius routing issue) — will retry in 15s")
+                # IP assigned but unreachable: pause and retry; sometimes routing
+                # propagates slowly, other times the IP block is simply broken.
+                time.sleep(15)
+                break
         time.sleep(10)
-    sys.exit("Could not retrieve public IP within timeout")
+    sys.exit("Could not get a reachable public IP within timeout")
 
 
 def wait_for_ssh(ip: str, key: str, timeout: int = SSH_READY_TIMEOUT) -> None:
@@ -254,9 +271,16 @@ def setup_vm(ip: str, env: dict) -> None:
     ])
 
     print("  Installing system deps and uv …")
+    # The ubuntu24.04-cuda13.0 image ships a docker installation that conflicts
+    # with the docker.io APT package. Install base tools first, then only add
+    # docker/compose-plugin if docker is not already available.
     remote(ip, key, (
         "sudo apt-get update -qq && "
-        "sudo apt-get install -y -qq python3-dev build-essential docker.io docker-compose-plugin git curl && "
+        "sudo apt-get install -y -qq python3-dev build-essential git curl && "
+        "(command -v docker >/dev/null || sudo apt-get install -y -qq docker.io docker-compose-plugin) && "
+        "(command -v docker >/dev/null && "
+        " dpkg -l docker-compose-plugin >/dev/null 2>&1 || "
+        " sudo apt-get install -y -qq docker-compose-plugin) && "
         "sudo systemctl enable --now docker && "
         f"sudo usermod -aG docker {SSH_USER}"
     ))
