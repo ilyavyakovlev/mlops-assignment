@@ -17,7 +17,7 @@ exec "$UV" run python -m vllm.entrypoints.openai.api_server \
     --dtype bfloat16 \
     --max-model-len 8192 \
     --gpu-memory-utilization 0.92 \
-    --max-num-seqs 64 \
+    --max-num-seqs 8 \
     --enable-prefix-caching \
     --enable-chunked-prefill \
     --disable-log-requests \
@@ -29,7 +29,7 @@ exec "$UV" run python -m vllm.entrypoints.openai.api_server \
 #   --max-model-len 8192        Covers 3K schema+prompt+output with headroom; smaller
 #                               context = less KV cache pressure per slot
 #   --gpu-memory-utilization 0.92  Leave ~6 GB buffer; MoE expert weights are large
-#   --max-num-seqs 64           Starting point for concurrency; tune down if P95 climbs
+#   --max-num-seqs 8            Tuned down from 64; limits queue depth at ~0.15 RPS sustainable throughput
 #   --enable-prefix-caching     DB schemas repeat across requests → big KV cache hit rate
 #   --enable-chunked-prefill    Better batching of variable-length prompts under load
 #   --disable-log-requests      Reduces per-request logging overhead at high RPS
